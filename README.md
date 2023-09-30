@@ -48,5 +48,5 @@ Before getting started with K8s Pro Sentinel, ensure you have the following prer
 1. Clone the K8s Pro Sentinel repository:
 
    ```sh
-   git clone https://github.com/your-username/k8s-pro-sentinel.git
+   git clone https://github.com/kavinduxo/k8s-pro-sentinel.git
 
