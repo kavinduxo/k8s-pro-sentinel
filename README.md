@@ -1,6 +1,6 @@
 # K8s Pro Sentinel: Kubernetes Security Operator
 <div align="center">
-![K8s Pro Sentinel Logo](assets/img/pro-logo.png)
+<img src="assets/img/pro-logo.png">
 </div>
 
 ## Table of Contents
