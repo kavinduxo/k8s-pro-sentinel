@@ -1,0 +1,27 @@
+# permissions for end users to view k8ssentinals.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: k8ssentinal-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: k8s-sentinal
+    app.kubernetes.io/part-of: k8s-sentinal
+    app.kubernetes.io/managed-by: kustomize
+  name: k8ssentinal-viewer-role
+rules:
+- apiGroups:
+  - cache.sentinal.com
+  resources:
+  - k8ssentinals
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cache.sentinal.com
+  resources:
+  - k8ssentinals/status
+  verbs:
+  - get

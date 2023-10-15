@@ -1,0 +1,48 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+    createdAt: "2023-10-14T23:54:06Z"
+    operators.operatorframework.io/builder: operator-sdk-v1.32.0+git
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+  name: k8s-sentinal.v0.0.1
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions: {}
+  description: More security with less confusion for the cluster
+  displayName: K8s-Sentinal
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: []
+    strategy: deployment
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - k8s
+  - sentinal
+  - k8s-sentinal
+  - kubernetes
+  - cncf
+  links:
+  - name: K8s Sentinal
+    url: https://k8s-sentinal.domain
+  maintainers:
+  - email: kavindu.xo@gmail.com
+    name: kavinduxo
+  maturity: alpha
+  provider:
+    name: kavinduxo
+  version: 0.0.1

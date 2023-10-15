@@ -1,0 +1,31 @@
+# permissions for end users to edit k8s-sentinals.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: k8s-sentinal-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: k8s-sentinal
+    app.kubernetes.io/part-of: k8s-sentinal
+    app.kubernetes.io/managed-by: kustomize
+  name: k8s-sentinal-editor-role
+rules:
+- apiGroups:
+  - cache.sentinal.com
+  resources:
+  - k8s-sentinals
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cache.sentinal.com
+  resources:
+  - k8s-sentinals/status
+  verbs:
+  - get

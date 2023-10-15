@@ -1,0 +1,51 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: k8s-sentinal.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: K8sSentinal is the Schema for the k8ssentinals API
+      displayName: K8s Sentinal
+      kind: K8sSentinal
+      name: k8ssentinals.cache.sentinal.com
+      version: v1alpha1
+  description: More security with less confusion for the cluster
+  displayName: K8s-Sentinal
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - k8s
+  - sentinal
+  - k8s-sentinal
+  - kubernetes
+  - cncf
+  links:
+  - name: K8s Sentinal
+    url: https://k8s-sentinal.domain
+  maintainers:
+  - email: kavindu.xo@gmail.com
+    name: kavinduxo
+  maturity: alpha
+  provider:
+    name: kavinduxo
+  version: 0.0.0
