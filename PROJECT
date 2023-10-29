@@ -10,4 +10,13 @@ plugins:
   scorecard.sdk.operatorframework.io/v2: {}
 projectName: sentinal-operator
 repo: github.com/kavinduxo/k8s-pro-sentinel
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: example.com
+  kind: Rbacpolicy
+  path: github.com/kavinduxo/k8s-pro-sentinel/api/v1alpha1
+  version: v1alpha1
 version: "3"
