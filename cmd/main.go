@@ -1,1 +1,0 @@
-// Placeholder for k8sprosentinel-cli
