@@ -5,8 +5,8 @@ metadata:
     app.kubernetes.io/name: clusterrolebinding
     app.kubernetes.io/instance: manager-rolebinding
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: sentinal-operator
-    app.kubernetes.io/part-of: sentinal-operator
+    app.kubernetes.io/created-by: k8s-pro-sentinel
+    app.kubernetes.io/part-of: k8s-pro-sentinel
     app.kubernetes.io/managed-by: kustomize
   name: manager-rolebinding
 roleRef:

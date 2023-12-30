@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package controller
 
 import (
 	"context"
@@ -24,29 +24,29 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	examplecomv1alpha1 "github.com/kavinduxo/k8s-pro-sentinel/api/v1alpha1"
+	secopsv1alpha1 "github.com/kavinduxo/k8s-pro-sentinel/api/v1alpha1"
 )
 
-// RbacpolicyReconciler reconciles a Rbacpolicy object
-type RbacpolicyReconciler struct {
+// RbachookReconciler reconciles a Rbachook object
+type RbachookReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=example.com,resources=rbacpolicies,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=example.com,resources=rbacpolicies/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=example.com,resources=rbacpolicies/finalizers,verbs=update
+//+kubebuilder:rbac:groups=secops.kavinduxo.com,resources=rbachooks,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=secops.kavinduxo.com,resources=rbachooks/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=secops.kavinduxo.com,resources=rbachooks/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the Rbacpolicy object against the actual cluster state, and then
+// the Rbachook object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
-func (r *RbacpolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
+func (r *RbachookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -55,8 +55,8 @@ func (r *RbacpolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *RbacpolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *RbachookReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&examplecomv1alpha1.Rbacpolicy{}).
+		For(&secopsv1alpha1.Rbachook{}).
 		Complete(r)
 }

@@ -1,27 +1,27 @@
-# permissions for end users to view rbacpolicies.
+# permissions for end users to view rbachooks.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: rbacpolicy-viewer-role
+    app.kubernetes.io/instance: rbachook-viewer-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: sentinal-operator
-    app.kubernetes.io/part-of: sentinal-operator
+    app.kubernetes.io/created-by: k8s-pro-sentinel
+    app.kubernetes.io/part-of: k8s-pro-sentinel
     app.kubernetes.io/managed-by: kustomize
-  name: rbacpolicy-viewer-role
+  name: rbachook-viewer-role
 rules:
 - apiGroups:
-  - example.com
+  - secops.kavinduxo.com
   resources:
-  - rbacpolicies
+  - rbachooks
   verbs:
   - get
   - list
   - watch
 - apiGroups:
-  - example.com
+  - secops.kavinduxo.com
   resources:
-  - rbacpolicies/status
+  - rbachooks/status
   verbs:
   - get
