@@ -1,0 +1,12 @@
+apiVersion: secops.kavinduxo.com/v1alpha1
+kind: Rbachook
+metadata:
+  labels:
+    app.kubernetes.io/name: rbachook
+    app.kubernetes.io/instance: rbachook-sample
+    app.kubernetes.io/part-of: k8s-pro-sentinel
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: k8s-pro-sentinel
+  name: rbachook-sample
+spec:
+  # TODO(user): Add fields here
