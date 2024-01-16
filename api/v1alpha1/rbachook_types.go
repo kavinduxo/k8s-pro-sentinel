@@ -23,17 +23,17 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// RbacpolicySpec defines the desired state of Rbacpolicy
-type RbacpolicySpec struct {
+// RbachookSpec defines the desired state of Rbachook
+type RbachookSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Rbacpolicy. Edit rbacpolicy_types.go to remove/update
+	// Foo is an example field of Rbachook. Edit rbachook_types.go to remove/update
 	Foo string `json:"foo,omitempty"`
 }
 
-// RbacpolicyStatus defines the observed state of Rbacpolicy
-type RbacpolicyStatus struct {
+// RbachookStatus defines the observed state of Rbachook
+type RbachookStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 }
@@ -41,24 +41,24 @@ type RbacpolicyStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// Rbacpolicy is the Schema for the rbacpolicies API
-type Rbacpolicy struct {
+// Rbachook is the Schema for the rbachooks API
+type Rbachook struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   RbacpolicySpec   `json:"spec,omitempty"`
-	Status RbacpolicyStatus `json:"status,omitempty"`
+	Spec   RbachookSpec   `json:"spec,omitempty"`
+	Status RbachookStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// RbacpolicyList contains a list of Rbacpolicy
-type RbacpolicyList struct {
+// RbachookList contains a list of Rbachook
+type RbachookList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Rbacpolicy `json:"items"`
+	Items           []Rbachook `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Rbacpolicy{}, &RbacpolicyList{})
+	SchemeBuilder.Register(&Rbachook{}, &RbachookList{})
 }
