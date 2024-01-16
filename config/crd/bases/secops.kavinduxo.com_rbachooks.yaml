@@ -34,13 +34,24 @@ spec:
           spec:
             description: RbachookSpec defines the desired state of Rbachook
             properties:
-              foo:
-                description: Foo is an example field of Rbachook. Edit rbachook_types.go
-                  to remove/update
-                type: string
+              size:
+                description: Size is the size of the memcached deployment
+                format: int32
+                minimum: 0
+                type: integer
+            required:
+            - size
             type: object
           status:
             description: RbachookStatus defines the observed state of Rbachook
+            properties:
+              nodes:
+                description: Nodes are the names of the memcached pods
+                items:
+                  type: string
+                type: array
+            required:
+            - nodes
             type: object
         type: object
     served: true
