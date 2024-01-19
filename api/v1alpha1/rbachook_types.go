@@ -29,8 +29,12 @@ type RbachookSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// +kubebuilder:validation:Minimum=0
-	// Size is the size of the memcached deployment
+	// Size is the size of the rbachook deployment
 	Size int32 `json:"size"`
+
+	// Port defines the port that will be used to init the container with the image
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	ContainerPort int32 `json:"containerPort,omitempty"`
 }
 
 // RbachookStatus defines the observed state of Rbachook
@@ -38,8 +42,9 @@ type RbachookStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Nodes are the names of the memcached pods
-	Nodes []string `json:"nodes"`
+	// Conditions store the status conditions of the Rbachook instances
+	// +operator-sdk:csv:customresourcedefinitions:type=status
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
 //+kubebuilder:object:root=true
