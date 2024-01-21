@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,8 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	examplecomv1alpha1 "github.com/kavinduxo/k8s-pro-sentinel/api/v1alpha1"
-	"github.com/kavinduxo/k8s-pro-sentinel/controllers"
+	secopsv1alpha1 "github.com/kavinduxo/sentinel-operator/api/v1alpha1"
+	"github.com/kavinduxo/sentinel-operator/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -44,7 +44,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(examplecomv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(secopsv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -71,7 +71,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "c6a78e7f.example.com",
+		LeaderElectionID:       "9f86f571.kavinduxo.com",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
@@ -89,11 +89,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.RbacpolicyReconciler{
+	if err = (&controller.SentinelReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Rbacpolicy")
+		setupLog.Error(err, "unable to create controller", "controller", "Sentinel")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

@@ -1,59 +1,12 @@
-# K8s Pro Sentinel: Kubernetes Security Operator
-<div align="center">
-<img src="assets/img/pro-logo.png">
-</div>
+# sentinel-operator
+// TODO(user): Add simple overview of use/purpose
 
-## Table of Contents
-
-- [Introduction](#introduction)
-- [Features](#features)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-- [Usage](#usage)
-  - [Configuration](#configuration)
-  - [Running Checks](#running-checks)
-- [Documentation](#documentation)
-  - [User Guide](#user-guide)
-  - [Developer Guide](#developer-guide)
-  - [API Reference](#api-reference)
-- [Contributing](#contributing)
-- [License](#license)
-
-## Introduction
-
-K8s Pro Sentinel is a powerful Kubernetes security operator designed to bolster the security of your Kubernetes clusters. It functions as a vigilant sentinel, continuously monitoring, auditing, and securing your cluster's resources, ensuring that your applications and infrastructure adhere to the highest security standards.
-
-## Features
-
-- **Automated Security Checks:** K8s Pro Sentinel automates a wide range of security checks, including RBAC policy analysis, secrets management, and more.
-
-- **Comprehensive Auditing:** Gain deep insights into the security status of your cluster through detailed audit logs and reports. Easily track security violations and their resolution.
-
-- **RBAC Best Practices:** Ensure that your Kubernetes Role-Based Access Control (RBAC) configurations adhere to best practices, minimizing the risk of unauthorized access.
-
-- **Secrets Management:** Safeguard sensitive information by monitoring secrets usage and ensuring compliance with security policies.
+## Description
+// TODO(user): An in-depth paragraph about your project and overview of use
 
 ## Getting Started
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
 **Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
-
-
-### Prerequisites
-
-Before getting started with K8s Pro Sentinel, ensure you have the following prerequisites:
-
-- Kubernetes Cluster
-- Kubectl (Kubernetes CLI) installed
-- [Optional] Docker (for building custom images)
-
-### Installation
-
-1. Clone the K8s Pro Sentinel repository:
-
-   ```sh
-   git clone https://github.com/kavinduxo/k8s-pro-sentinel.git
-
 
 ### Running on the cluster
 1. Install Instances of Custom Resources:
@@ -65,13 +18,13 @@ kubectl apply -f config/samples/
 2. Build and push your image to the location specified by `IMG`:
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/sentinal-operator:tag
+make docker-build docker-push IMG=<some-registry>/sentinel-operator:tag
 ```
 
 3. Deploy the controller to the cluster with the image specified by `IMG`:
 
 ```sh
-make deploy IMG=<some-registry>/sentinal-operator:tag
+make deploy IMG=<some-registry>/sentinel-operator:tag
 ```
 
 ### Uninstall CRDs
@@ -125,7 +78,7 @@ More information can be found via the [Kubebuilder Documentation](https://book.k
 
 ## License
 
-Copyright 2023.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
