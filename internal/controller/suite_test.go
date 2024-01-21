@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	secopsv1alpha1 "github.com/kavinduxo/k8s-pro-sentinel/api/v1alpha1"
+	secopsv1alpha1 "github.com/kavinduxo/sentinel-operator/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 

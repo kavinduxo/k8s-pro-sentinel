@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,81 +36,74 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	secopsv1alpha1 "github.com/kavinduxo/k8s-pro-sentinel/api/v1alpha1"
+	secopsv1alpha1 "github.com/kavinduxo/sentinel-operator/api/v1alpha1"
 )
 
-const rbachookFinalizer = "cache.kavinduxo.com/finalizer"
+const sentinelFinalizer = "secops.kavinduxo.com/finalizer"
 
 // Definitions to manage status conditions
 const (
-	// typeAvailableRbachook represents the status of the Deployment reconciliation
-	typeAvailableRbachook = "Available"
-	// typeDegradedRbachook represents the status used when the custom resource is deleted and the finalizer operations are must to occur.
-	typeDegradedRbachook = "Degraded"
+	// typeAvailableSentinel represents the status of the Deployment reconciliation
+	typeAvailableSentinel = "Available"
+	// typeDegradedSentinel represents the status used when the custom resource is deleted and the finalizer operations are must to occur.
+	typeDegradedSentinel = "Degraded"
 )
 
-// RbachookReconciler reconciles a Rbachook object
-type RbachookReconciler struct {
+// SentinelReconciler reconciles a Sentinel object
+type SentinelReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 }
 
-//+kubebuilder:rbac:groups=secops.kavinduxo.com,resources=rbachooks,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=secops.kavinduxo.com,resources=rbachooks/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=secops.kavinduxo.com,resources=rbachooks/finalizers,verbs=update
+//+kubebuilder:rbac:groups=secops.kavinduxo.com,resources=sentinels,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=secops.kavinduxo.com,resources=sentinels/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=secops.kavinduxo.com,resources=sentinels/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the Rbachook object against the actual cluster state, and then
+// the Sentinel object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
-func (r *RbachookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *SentinelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
-	// modifications done
-
-	//fetch the rbachook instance
-	// The purpose is check if the Custom Resource for the Kind Rbachook
+	// Fetch the Sentinel instance
+	// The purpose is check if the Custom Resource for the Kind Sentinel
 	// is applied on the cluster if not we return nil to stop the reconciliation
-	rbachook := &secopsv1alpha1.Rbachook{}
-	err := r.Get(ctx, req.NamespacedName, rbachook)
+	sentinel := &secopsv1alpha1.Sentinel{}
+	err := r.Get(ctx, req.NamespacedName, sentinel)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			// Request object not found, could have been deleted after reconcile request.
-			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
-			// Return and don't requeue
-			log.Info("Rbachook resource not found. Ignoring since object must be deleted")
+		if apierrors.IsNotFound(err) {
+			// If the custom resource is not found then, it usually means that it was deleted or not created
+			// In this way, we will stop the reconciliation
+			log.Info("sentinel resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
-		log.Error(err, "Failed to get Rbachook")
+		log.Error(err, "Failed to get sentinel")
 		return ctrl.Result{}, err
 	}
 
-	// // Check if the deployment already exists, if not create a new one
-	// found := &appsv1.Deployment{}
-	// err = r.Get(ctx, types.NamespacedName{Name: rbachook.Name, Namespace: rbachook.Namespace}, found)
-
 	// Let's just set the status as Unknown when no status are available
-	if rbachook.Status.Conditions == nil || len(rbachook.Status.Conditions) == 0 {
-		meta.SetStatusCondition(&rbachook.Status.Conditions, metav1.Condition{Type: typeAvailableRbachook, Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
-		if err = r.Status().Update(ctx, rbachook); err != nil {
-			log.Error(err, "Failed to update Rbachook status")
+	if sentinel.Status.Conditions == nil || len(sentinel.Status.Conditions) == 0 {
+		meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel, Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		if err = r.Status().Update(ctx, sentinel); err != nil {
+			log.Error(err, "Failed to update Sentinel status")
 			return ctrl.Result{}, err
 		}
 
-		// Let's re-fetch the rbachook Custom Resource after update the status
+		// Let's re-fetch the sentinel Custom Resource after update the status
 		// so that we have the latest state of the resource on the cluster and we will avoid
 		// raise the issue "the object has been modified, please apply
 		// your changes to the latest version and try again" which would re-trigger the reconciliation
 		// if we try to update it again in the following operations
-		if err := r.Get(ctx, req.NamespacedName, rbachook); err != nil {
-			log.Error(err, "Failed to re-fetch rbachook")
+		if err := r.Get(ctx, req.NamespacedName, sentinel); err != nil {
+			log.Error(err, "Failed to re-fetch sentinel")
 			return ctrl.Result{}, err
 		}
 	}
@@ -119,70 +111,70 @@ func (r *RbachookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// Let's add a finalizer. Then, we can define some operations which should
 	// occurs before the custom resource to be deleted.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers
-	if !controllerutil.ContainsFinalizer(rbachook, rbachookFinalizer) {
-		log.Info("Adding Finalizer for Rbachook")
-		if ok := controllerutil.AddFinalizer(rbachook, rbachookFinalizer); !ok {
+	if !controllerutil.ContainsFinalizer(sentinel, sentinelFinalizer) {
+		log.Info("Adding Finalizer for Sentinel")
+		if ok := controllerutil.AddFinalizer(sentinel, sentinelFinalizer); !ok {
 			log.Error(err, "Failed to add finalizer into the custom resource")
 			return ctrl.Result{Requeue: true}, nil
 		}
 
-		if err = r.Update(ctx, rbachook); err != nil {
+		if err = r.Update(ctx, sentinel); err != nil {
 			log.Error(err, "Failed to update custom resource to add finalizer")
 			return ctrl.Result{}, err
 		}
 	}
 
-	// Check if the Rbachook instance is marked to be deleted, which is
+	// Check if the Sentinel instance is marked to be deleted, which is
 	// indicated by the deletion timestamp being set.
-	isRbachookMarkedToBeDeleted := rbachook.GetDeletionTimestamp() != nil
-	if isRbachookMarkedToBeDeleted {
-		if controllerutil.ContainsFinalizer(rbachook, rbachookFinalizer) {
-			log.Info("Performing Finalizer Operations for Rbachook before delete CR")
+	isSentinelMarkedToBeDeleted := sentinel.GetDeletionTimestamp() != nil
+	if isSentinelMarkedToBeDeleted {
+		if controllerutil.ContainsFinalizer(sentinel, sentinelFinalizer) {
+			log.Info("Performing Finalizer Operations for Sentinel before delete CR")
 
 			// Let's add here an status "Downgrade" to define that this resource begin its process to be terminated.
-			meta.SetStatusCondition(&rbachook.Status.Conditions, metav1.Condition{Type: typeDegradedRbachook,
+			meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeDegradedSentinel,
 				Status: metav1.ConditionUnknown, Reason: "Finalizing",
-				Message: fmt.Sprintf("Performing finalizer operations for the custom resource: %s ", rbachook.Name)})
+				Message: fmt.Sprintf("Performing finalizer operations for the custom resource: %s ", sentinel.Name)})
 
-			if err := r.Status().Update(ctx, rbachook); err != nil {
-				log.Error(err, "Failed to update Rbachook status")
+			if err := r.Status().Update(ctx, sentinel); err != nil {
+				log.Error(err, "Failed to update Sentinel status")
 				return ctrl.Result{}, err
 			}
 
 			// Perform all operations required before remove the finalizer and allow
 			// the Kubernetes API to remove the custom resource.
-			r.doFinalizerOperationsForRbachook(rbachook)
+			r.doFinalizerOperationsForSentinel(sentinel)
 
-			// TODO(user): If you add operations to the doFinalizerOperationsForRbachook method
+			// TODO(user): If you add operations to the doFinalizerOperationsForSentinel method
 			// then you need to ensure that all worked fine before deleting and updating the Downgrade status
 			// otherwise, you should requeue here.
 
-			// Re-fetch the rbachook Custom Resource before update the status
+			// Re-fetch the sentinel Custom Resource before update the status
 			// so that we have the latest state of the resource on the cluster and we will avoid
 			// raise the issue "the object has been modified, please apply
 			// your changes to the latest version and try again" which would re-trigger the reconciliation
-			if err := r.Get(ctx, req.NamespacedName, rbachook); err != nil {
-				log.Error(err, "Failed to re-fetch rbachook")
+			if err := r.Get(ctx, req.NamespacedName, sentinel); err != nil {
+				log.Error(err, "Failed to re-fetch sentinel")
 				return ctrl.Result{}, err
 			}
 
-			meta.SetStatusCondition(&rbachook.Status.Conditions, metav1.Condition{Type: typeDegradedRbachook,
+			meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeDegradedSentinel,
 				Status: metav1.ConditionTrue, Reason: "Finalizing",
-				Message: fmt.Sprintf("Finalizer operations for custom resource %s name were successfully accomplished", rbachook.Name)})
+				Message: fmt.Sprintf("Finalizer operations for custom resource %s name were successfully accomplished", sentinel.Name)})
 
-			if err := r.Status().Update(ctx, rbachook); err != nil {
-				log.Error(err, "Failed to update Rbachook status")
+			if err := r.Status().Update(ctx, sentinel); err != nil {
+				log.Error(err, "Failed to update Sentinel status")
 				return ctrl.Result{}, err
 			}
 
-			log.Info("Removing Finalizer for Rbachook after successfully perform the operations")
-			if ok := controllerutil.RemoveFinalizer(rbachook, rbachookFinalizer); !ok {
-				log.Error(err, "Failed to remove finalizer for Rbachook")
+			log.Info("Removing Finalizer for Sentinel after successfully perform the operations")
+			if ok := controllerutil.RemoveFinalizer(sentinel, sentinelFinalizer); !ok {
+				log.Error(err, "Failed to remove finalizer for Sentinel")
 				return ctrl.Result{Requeue: true}, nil
 			}
 
-			if err := r.Update(ctx, rbachook); err != nil {
-				log.Error(err, "Failed to remove finalizer for Rbachhok")
+			if err := r.Update(ctx, sentinel); err != nil {
+				log.Error(err, "Failed to remove finalizer for Sentinel")
 				return ctrl.Result{}, err
 			}
 		}
@@ -191,20 +183,20 @@ func (r *RbachookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	// Check if the deployment already exists, if not create a new one
 	found := &appsv1.Deployment{}
-	err = r.Get(ctx, types.NamespacedName{Name: rbachook.Name, Namespace: rbachook.Namespace}, found)
+	err = r.Get(ctx, types.NamespacedName{Name: sentinel.Name, Namespace: sentinel.Namespace}, found)
 	if err != nil && apierrors.IsNotFound(err) {
 		// Define a new deployment
-		dep, err := r.deploymentForRbachook(rbachook)
+		dep, err := r.deploymentForSentinel(sentinel)
 		if err != nil {
-			log.Error(err, "Failed to define new Deployment resource for Rbachook")
+			log.Error(err, "Failed to define new Deployment resource for Sentinel")
 
 			// The following implementation will update the status
-			meta.SetStatusCondition(&rbachook.Status.Conditions, metav1.Condition{Type: typeAvailableRbachook,
+			meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel,
 				Status: metav1.ConditionFalse, Reason: "Reconciling",
-				Message: fmt.Sprintf("Failed to create Deployment for the custom resource (%s): (%s)", rbachook.Name, err)})
+				Message: fmt.Sprintf("Failed to create Deployment for the custom resource (%s): (%s)", sentinel.Name, err)})
 
-			if err := r.Status().Update(ctx, rbachook); err != nil {
-				log.Error(err, "Failed to update Rbachook status")
+			if err := r.Status().Update(ctx, sentinel); err != nil {
+				log.Error(err, "Failed to update Sentinel status")
 				return ctrl.Result{}, err
 			}
 
@@ -229,33 +221,33 @@ func (r *RbachookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
-	// The CRD API is defining that the Rbachook type, have a RbachookSpec.Size field
+	// The CRD API is defining that the Sentinel type, have a SentinelSpec.Size field
 	// to set the quantity of Deployment instances is the desired state on the cluster.
 	// Therefore, the following code will ensure the Deployment size is the same as defined
 	// via the Size spec of the Custom Resource which we are reconciling.
-	size := rbachook.Spec.Size
+	size := sentinel.Spec.Size
 	if *found.Spec.Replicas != size {
 		found.Spec.Replicas = &size
 		if err = r.Update(ctx, found); err != nil {
 			log.Error(err, "Failed to update Deployment",
 				"Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 
-			// Re-fetch the memcached Custom Resource before update the status
+			// Re-fetch the sentinel Custom Resource before update the status
 			// so that we have the latest state of the resource on the cluster and we will avoid
 			// raise the issue "the object has been modified, please apply
 			// your changes to the latest version and try again" which would re-trigger the reconciliation
-			if err := r.Get(ctx, req.NamespacedName, rbachook); err != nil {
-				log.Error(err, "Failed to re-fetch rbachook")
+			if err := r.Get(ctx, req.NamespacedName, sentinel); err != nil {
+				log.Error(err, "Failed to re-fetch sentinel")
 				return ctrl.Result{}, err
 			}
 
 			// The following implementation will update the status
-			meta.SetStatusCondition(&rbachook.Status.Conditions, metav1.Condition{Type: typeAvailableRbachook,
+			meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel,
 				Status: metav1.ConditionFalse, Reason: "Resizing",
-				Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", rbachook.Name, err)})
+				Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", sentinel.Name, err)})
 
-			if err := r.Status().Update(ctx, rbachook); err != nil {
-				log.Error(err, "Failed to update Rbachook status")
+			if err := r.Status().Update(ctx, sentinel); err != nil {
+				log.Error(err, "Failed to update Sentinel status")
 				return ctrl.Result{}, err
 			}
 
@@ -269,20 +261,20 @@ func (r *RbachookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// The following implementation will update the status
-	meta.SetStatusCondition(&rbachook.Status.Conditions, metav1.Condition{Type: typeAvailableRbachook,
+	meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel,
 		Status: metav1.ConditionTrue, Reason: "Reconciling",
-		Message: fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", rbachook.Name, size)})
+		Message: fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", sentinel.Name, size)})
 
-	if err := r.Status().Update(ctx, rbachook); err != nil {
-		log.Error(err, "Failed to update Rbachook status")
+	if err := r.Status().Update(ctx, sentinel); err != nil {
+		log.Error(err, "Failed to update Sentinel status")
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
 }
 
-// finalizeMemcached will perform the required operations before delete the CR.
-func (r *RbachookReconciler) doFinalizerOperationsForRbachook(cr *secopsv1alpha1.Rbachook) {
+// finalizeSentinel will perform the required operations before delete the CR.
+func (r *SentinelReconciler) doFinalizerOperationsForSentinel(cr *secopsv1alpha1.Sentinel) {
 	// TODO(user): Add the cleanup steps that the operator
 	// needs to do before the CR can be deleted. Examples
 	// of finalizers include performing backups and deleting
@@ -301,22 +293,22 @@ func (r *RbachookReconciler) doFinalizerOperationsForRbachook(cr *secopsv1alpha1
 			cr.Namespace))
 }
 
-// deploymentForMemcached returns a Rbachook Deployment object
-func (r *RbachookReconciler) deploymentForRbachook(
-	rbachook *secopsv1alpha1.Rbachook) (*appsv1.Deployment, error) {
-	ls := labelsForRbachook(rbachook.Name)
-	replicas := rbachook.Spec.Size
+// deploymentForSentinel returns a Sentinel Deployment object
+func (r *SentinelReconciler) deploymentForSentinel(
+	sentinel *secopsv1alpha1.Sentinel) (*appsv1.Deployment, error) {
+	ls := labelsForSentinel(sentinel.Name)
+	replicas := sentinel.Spec.Size
 
 	// Get the Operand image
-	image, err := imageForRbachook()
+	image, err := imageForSentinel()
 	if err != nil {
 		return nil, err
 	}
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      rbachook.Name,
-			Namespace: rbachook.Namespace,
+			Name:      sentinel.Name,
+			Namespace: sentinel.Namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
@@ -367,7 +359,7 @@ func (r *RbachookReconciler) deploymentForRbachook(
 					},
 					Containers: []corev1.Container{{
 						Image:           image,
-						Name:            "rbachook",
+						Name:            "sentinel",
 						ImagePullPolicy: corev1.PullIfNotPresent,
 						// Ensure restrictive context for the container
 						// More info: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
@@ -378,7 +370,7 @@ func (r *RbachookReconciler) deploymentForRbachook(
 							// then, you MUST ensure that the Dockerfile defines a User ID OR you MUST leave the "RunAsNonRoot" and
 							// "RunAsUser" fields empty.
 							RunAsNonRoot: &[]bool{true}[0],
-							// The memcached image does not use a non-zero numeric user as the default user.
+							// The sentinel image does not use a non-zero numeric user as the default user.
 							// Due to RunAsNonRoot field being set to true, we need to force the user in the
 							// container to a non-zero numeric user. We do this using the RunAsUser field.
 							// However, if you are looking to provide solution for K8s vendors like OpenShift
@@ -392,10 +384,10 @@ func (r *RbachookReconciler) deploymentForRbachook(
 							},
 						},
 						Ports: []corev1.ContainerPort{{
-							ContainerPort: rbachook.Spec.ContainerPort,
-							Name:          "rbachook",
+							ContainerPort: sentinel.Spec.ContainerPort,
+							Name:          "sentinel",
 						}},
-						Command: []string{"rbachhok", "-m=64", "-o", "modern", "-v"},
+						Command: []string{"sentinel", "-m=64", "-o", "modern", "-v"},
 					}},
 				},
 			},
@@ -404,32 +396,32 @@ func (r *RbachookReconciler) deploymentForRbachook(
 
 	// Set the ownerRef for the Deployment
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/
-	if err := ctrl.SetControllerReference(rbachook, dep, r.Scheme); err != nil {
+	if err := ctrl.SetControllerReference(sentinel, dep, r.Scheme); err != nil {
 		return nil, err
 	}
 	return dep, nil
 }
 
-// labelsForMemcached returns the labels for selecting the resources
+// labelsForSentinel returns the labels for selecting the resources
 // More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/
-func labelsForRbachook(name string) map[string]string {
+func labelsForSentinel(name string) map[string]string {
 	var imageTag string
-	image, err := imageForRbachook()
+	image, err := imageForSentinel()
 	if err == nil {
 		imageTag = strings.Split(image, ":")[1]
 	}
-	return map[string]string{"app.kubernetes.io/name": "Rbachook",
+	return map[string]string{"app.kubernetes.io/name": "Sentinel",
 		"app.kubernetes.io/instance":   name,
 		"app.kubernetes.io/version":    imageTag,
-		"app.kubernetes.io/part-of":    "k8s-pro-sentinel",
+		"app.kubernetes.io/part-of":    "sentinel-operator",
 		"app.kubernetes.io/created-by": "controller-manager",
 	}
 }
 
-// imageForRbachook gets the Operand image which is managed by this controller
-// from the RBACHOOK_IMAGE environment variable defined in the config/manager/manager.yaml
-func imageForRbachook() (string, error) {
-	var imageEnvVar = "RBACHOOK_IMAGE"
+// imageForSentinel gets the Operand image which is managed by this controller
+// from the SENTINEL_IMAGE environment variable defined in the config/manager/manager.yaml
+func imageForSentinel() (string, error) {
+	var imageEnvVar = "SENTINEL_IMAGE"
 	image, found := os.LookupEnv(imageEnvVar)
 	if !found {
 		return "", fmt.Errorf("Unable to find %s environment variable with the image", imageEnvVar)
@@ -438,11 +430,9 @@ func imageForRbachook() (string, error) {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-// Note that the Deployment will be also watched in order to ensure its
-// desirable state on the cluster
-func (r *RbachookReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *SentinelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&secopsv1alpha1.Rbachook{}).
+		For(&secopsv1alpha1.Sentinel{}).
 		Owns(&appsv1.Deployment{}).
 		Complete(r)
 }

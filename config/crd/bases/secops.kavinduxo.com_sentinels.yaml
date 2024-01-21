@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
-  name: rbachooks.secops.kavinduxo.com
+  name: sentinels.secops.kavinduxo.com
 spec:
   group: secops.kavinduxo.com
   names:
-    kind: Rbachook
-    listKind: RbachookList
-    plural: rbachooks
-    singular: rbachook
+    kind: Sentinel
+    listKind: SentinelList
+    plural: sentinels
+    singular: sentinel
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Rbachook is the Schema for the rbachooks API
+        description: Sentinel is the Schema for the sentinels API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -32,7 +32,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: RbachookSpec defines the desired state of Rbachook
+            description: SentinelSpec defines the desired state of Sentinel
             properties:
               containerPort:
                 description: Port defines the port that will be used to init the container
@@ -40,18 +40,17 @@ spec:
                 format: int32
                 type: integer
               size:
-                description: Size is the size of the  deployment
+                description: Size defines the number of Sentinel instances
                 format: int32
-                minimum: 0
+                maximum: 5
+                minimum: 1
                 type: integer
-            required:
-            - size
             type: object
           status:
-            description: RbachookStatus defines the observed state of Rbachook
+            description: SentinelStatus defines the observed state of Sentinel
             properties:
               conditions:
-                description: Conditions store the status conditions of the Memcached
+                description: Conditions store the status conditions of the Sentinel
                   instances
                 items:
                   description: "Condition contains details for one aspect of the current

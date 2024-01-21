@@ -2,7 +2,7 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: rbachooks.secops.kavinduxo.com
+  name: sentinels.secops.kavinduxo.com
 spec:
   conversion:
     strategy: Webhook

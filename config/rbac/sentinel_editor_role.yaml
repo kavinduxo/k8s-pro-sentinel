@@ -1,20 +1,20 @@
-# permissions for end users to edit rbachooks.
+# permissions for end users to edit sentinels.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: rbachook-editor-role
+    app.kubernetes.io/instance: sentinel-editor-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: k8s-pro-sentinel
-    app.kubernetes.io/part-of: k8s-pro-sentinel
+    app.kubernetes.io/created-by: sentinel-operator
+    app.kubernetes.io/part-of: sentinel-operator
     app.kubernetes.io/managed-by: kustomize
-  name: rbachook-editor-role
+  name: sentinel-editor-role
 rules:
 - apiGroups:
   - secops.kavinduxo.com
   resources:
-  - rbachooks
+  - sentinels
   verbs:
   - create
   - delete
@@ -26,6 +26,6 @@ rules:
 - apiGroups:
   - secops.kavinduxo.com
   resources:
-  - rbachooks/status
+  - sentinels/status
   verbs:
   - get

@@ -8,8 +8,8 @@ layout:
 plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
-projectName: k8s-pro-sentinel
-repo: github.com/kavinduxo/k8s-pro-sentinel
+projectName: sentinel-operator
+repo: github.com/kavinduxo/sentinel-operator
 resources:
 - api:
     crdVersion: v1
@@ -17,7 +17,7 @@ resources:
   controller: true
   domain: kavinduxo.com
   group: secops
-  kind: Rbachook
-  path: github.com/kavinduxo/k8s-pro-sentinel/api/v1alpha1
+  kind: Sentinel
+  path: github.com/kavinduxo/sentinel-operator/api/v1alpha1
   version: v1alpha1
 version: "3"
