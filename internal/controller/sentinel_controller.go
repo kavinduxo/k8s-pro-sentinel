@@ -387,7 +387,7 @@ func (r *SentinelReconciler) deploymentForSentinel(
 							ContainerPort: sentinel.Spec.ContainerPort,
 							Name:          "sentinel",
 						}},
-						Command: []string{"sentinel", "-m=64", "-o", "modern", "-v"},
+						// Command: []string{"sentinel", "-m=64", "-o", "modern", "-v"},
 					}},
 				},
 			},
