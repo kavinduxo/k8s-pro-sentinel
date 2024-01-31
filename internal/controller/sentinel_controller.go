@@ -18,13 +18,14 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,7 +47,15 @@ const (
 	// typeAvailableSentinel represents the status of the Deployment reconciliation
 	typeAvailableSentinel = "Available"
 	// typeDegradedSentinel represents the status used when the custom resource is deleted and the finalizer operations are must to occur.
-	typeDegradedSentinel = "Degraded"
+	typeDegradedSentinel  = "Degraded"
+	typeRbacIssueSentinel = "RBAC Failed"
+)
+
+const (
+	typeSecretBase          = "BaseSecret"
+	typeSecretRbac          = "RBACSecuredSecret"
+	typeSecretLocalEncryted = "SecuredSecret"
+	typeSecretKmsEncrypted  = "KMSSecuredSecret"
 )
 
 // SentinelReconciler reconciles a Sentinel object
@@ -181,89 +190,38 @@ func (r *SentinelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, nil
 	}
 
-	// Check if the deployment already exists, if not create a new one
-	found := &appsv1.Deployment{}
-	err = r.Get(ctx, types.NamespacedName{Name: sentinel.Name, Namespace: sentinel.Namespace}, found)
-	if err != nil && apierrors.IsNotFound(err) {
-		// Define a new deployment
-		dep, err := r.deploymentForSentinel(sentinel)
-		if err != nil {
-			log.Error(err, "Failed to define new Deployment resource for Sentinel")
+	secret, err := r.secretForSentinel(sentinel, ctx, req)
+	if err != nil {
+		log.Error(err, "Failed to appear secret for Sentinel")
 
-			// The following implementation will update the status
-			meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel,
-				Status: metav1.ConditionFalse, Reason: "Reconciling",
-				Message: fmt.Sprintf("Failed to create Deployment for the custom resource (%s): (%s)", sentinel.Name, err)})
+		// The following implementation will update the status
+		meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel,
+			Status: metav1.ConditionFalse, Reason: "Reconciling",
+			Message: fmt.Sprintf("Failed to create/find secret for the custom resource (%s): (%s)", sentinel.Name, err)})
 
-			if err := r.Status().Update(ctx, sentinel); err != nil {
-				log.Error(err, "Failed to update Sentinel status")
-				return ctrl.Result{}, err
-			}
-
+		if err := r.Status().Update(ctx, sentinel); err != nil {
+			log.Error(err, "Failed to update Sentinel status")
 			return ctrl.Result{}, err
 		}
-
-		log.Info("Creating a new Deployment",
-			"Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
-		if err = r.Create(ctx, dep); err != nil {
-			log.Error(err, "Failed to create new Deployment",
-				"Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
-			return ctrl.Result{}, err
-		}
-
-		// Deployment created successfully
-		// We will requeue the reconciliation so that we can ensure the state
-		// and move forward for the next operations
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
-	} else if err != nil {
-		log.Error(err, "Failed to get Deployment")
-		// Let's return the error for the reconciliation be re-trigged again
-		return ctrl.Result{}, err
 	}
+	log.Info("Secret is Available now",
+		"Secret.Namespace", secret.Namespace, "Seret.Name", secret.Name)
 
-	// The CRD API is defining that the Sentinel type, have a SentinelSpec.Size field
-	// to set the quantity of Deployment instances is the desired state on the cluster.
-	// Therefore, the following code will ensure the Deployment size is the same as defined
-	// via the Size spec of the Custom Resource which we are reconciling.
-	size := sentinel.Spec.Size
-	if *found.Spec.Replicas != size {
-		found.Spec.Replicas = &size
-		if err = r.Update(ctx, found); err != nil {
-			log.Error(err, "Failed to update Deployment",
-				"Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+	// Secret created successfully
+	// We will requeue the reconciliation so that we can ensure the state
+	// and move forward for the next operations
 
-			// Re-fetch the sentinel Custom Resource before update the status
-			// so that we have the latest state of the resource on the cluster and we will avoid
-			// raise the issue "the object has been modified, please apply
-			// your changes to the latest version and try again" which would re-trigger the reconciliation
-			if err := r.Get(ctx, req.NamespacedName, sentinel); err != nil {
-				log.Error(err, "Failed to re-fetch sentinel")
-				return ctrl.Result{}, err
-			}
-
-			// The following implementation will update the status
-			meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel,
-				Status: metav1.ConditionFalse, Reason: "Resizing",
-				Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", sentinel.Name, err)})
-
-			if err := r.Status().Update(ctx, sentinel); err != nil {
-				log.Error(err, "Failed to update Sentinel status")
-				return ctrl.Result{}, err
-			}
-
-			return ctrl.Result{}, err
-		}
-
-		// Now, that we update the size we want to requeue the reconciliation
-		// so that we can ensure that we have the latest state of the resource before
-		// update. Also, it will help ensure the desired state on the cluster
-		return ctrl.Result{Requeue: true}, nil
+	// Validate the custom resource spec
+	if validateRes, err := r.validateSentinelSpec(sentinel, ctx, req); err != nil {
+		return validateRes, err
 	}
 
 	// The following implementation will update the status
-	meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel,
+	meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{
+		Type:   typeAvailableSentinel,
 		Status: metav1.ConditionTrue, Reason: "Reconciling",
-		Message: fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", sentinel.Name, size)})
+		Message: fmt.Sprintf("Secret for custom resource created successfully (%s): (%s) : (%s)", sentinel.Name, sentinel.Namespace, sentinel.Spec.SecretType),
+	})
 
 	if err := r.Status().Update(ctx, sentinel); err != nil {
 		log.Error(err, "Failed to update Sentinel status")
@@ -271,6 +229,70 @@ func (r *SentinelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	return ctrl.Result{}, nil
+
+}
+
+func (r *SentinelReconciler) validateSentinelSpec(
+	sentinel *secopsv1alpha1.Sentinel, ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := log.FromContext(ctx)
+
+	crName := sentinel.ObjectMeta.Name
+	crKind := sentinel.Kind
+
+	if crKind != "Sentinel" {
+		kindErr := errors.New(crKind + " is an invalid Kind for the Sentinel CR.")
+		log.Error(kindErr, "Invalid Kind!")
+
+		meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel,
+			Status: metav1.ConditionFalse, Reason: "Resizing",
+			Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", sentinel.Name, kindErr)})
+
+		return ctrl.Result{}, kindErr
+	}
+
+	if crName == "" {
+		crNameErr := errors.New("Sentinel CR didn't map a name to metadata")
+		log.Error(crNameErr, "Invalid Metadata!")
+
+		meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel,
+			Status: metav1.ConditionFalse, Reason: "Resizing",
+			Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", sentinel.Name, crNameErr)})
+
+		return ctrl.Result{}, crNameErr
+	}
+
+	if crTypeErr := r.validateSecretType(sentinel); crTypeErr != nil {
+		log.Error(crTypeErr, "Invalid Secret Type!")
+
+		meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel,
+			Status: metav1.ConditionFalse, Reason: "Resizing",
+			Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", sentinel.Name, crTypeErr)})
+
+		return ctrl.Result{}, crTypeErr
+	}
+
+	// Now, that we update the size we want to requeue the reconciliation
+	// so that we can ensure that we have the latest state of the resource before
+	// update. Also, it will help ensure the desired state on the cluster
+	return ctrl.Result{Requeue: true}, nil
+
+}
+
+func (r *SentinelReconciler) validateSecretType(
+	sentinel *secopsv1alpha1.Sentinel) error {
+	if sentinel.Spec.SecretType == "" {
+		return fmt.Errorf("SecretType is required")
+	}
+
+	// Check if SecretType is one of the allowed values
+	switch sentinel.Spec.SecretType {
+	case typeSecretBase, typeSecretRbac, typeSecretLocalEncryted, typeSecretKmsEncrypted:
+		// Valid SecretType
+		return nil
+	default:
+		// Invalid SecretType
+		return fmt.Errorf("Invalid SecretType: %s", sentinel.Spec.SecretType)
+	}
 }
 
 // finalizeSentinel will perform the required operations before delete the CR.
@@ -293,113 +315,84 @@ func (r *SentinelReconciler) doFinalizerOperationsForSentinel(cr *secopsv1alpha1
 			cr.Namespace))
 }
 
-// deploymentForSentinel returns a Sentinel Deployment object
-func (r *SentinelReconciler) deploymentForSentinel(
-	sentinel *secopsv1alpha1.Sentinel) (*appsv1.Deployment, error) {
-	ls := labelsForSentinel(sentinel.Name)
-	replicas := sentinel.Spec.Size
+func (r *SentinelReconciler) secretForSentinel(
+	sentinel *secopsv1alpha1.Sentinel, ctx context.Context, req ctrl.Request) (*corev1.Secret, error) {
 
-	// Get the Operand image
-	image, err := imageForSentinel()
+	secretName := sentinel.Spec.SecretName
+	secretNamespace := sentinel.Namespace
+	secretType := sentinel.Spec.SecretType
+
+	// Fetch the Secret if it exists
+	existSecret := &corev1.Secret{}
+	err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: secretNamespace}, existSecret)
+
+	if err != nil && apierrors.IsNotFound(err) {
+		// Secret does not exist, create a new one
+
+		// Create the Secret data
+		secretData := map[string][]byte{}
+		for key, value := range sentinel.Spec.Data {
+			secretData[key] = []byte(value)
+		}
+
+		//Check the type of the secret
+		if secretType == "RBACSecuredSecret" {
+			if err := r.validateRbacSecret(sentinel); err != nil {
+				return nil, err
+			}
+		}
+
+		newSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      secretName,
+				Namespace: secretNamespace,
+			},
+			Data: secretData,
+			Type: corev1.SecretTypeOpaque,
+		}
+
+		// Set Sentinel instance as the owner of the Secret
+		if err := controllerutil.SetControllerReference(sentinel, newSecret, r.Scheme); err != nil {
+			return nil, err
+		}
+
+		// Create the Secret
+		if err := r.Create(ctx, newSecret); err != nil {
+			return nil, err
+		}
+
+		return newSecret, nil
+	} else if err != nil {
+		//if there is any error while fetching the existing secret
+		return nil, err
+	}
+
+	return existSecret, nil
+}
+
+func (r *SentinelReconciler) validateRbacSecret(
+	sentinel *secopsv1alpha1.Sentinel) error {
+	serviceAccount := &corev1.ServiceAccount{}
+	err := r.Get(context.TODO(), types.NamespacedName{Name: sentinel.Spec.ServiceAccount, Namespace: sentinel.Namespace}, serviceAccount)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("ServiceAccount '%s' not found: %s", sentinel.Spec.ServiceAccount, err.Error())
 	}
 
-	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      sentinel.Name,
-			Namespace: sentinel.Namespace,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: ls,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: ls,
-				},
-				Spec: corev1.PodSpec{
-					// TODO(user): Uncomment the following code to configure the nodeAffinity expression
-					// according to the platforms which are supported by your solution. It is considered
-					// best practice to support multiple architectures. build your manager image using the
-					// makefile target docker-buildx. Also, you can use docker manifest inspect <image>
-					// to check what are the platforms supported.
-					// More info: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity
-					//Affinity: &corev1.Affinity{
-					//	NodeAffinity: &corev1.NodeAffinity{
-					//		RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
-					//			NodeSelectorTerms: []corev1.NodeSelectorTerm{
-					//				{
-					//					MatchExpressions: []corev1.NodeSelectorRequirement{
-					//						{
-					//							Key:      "kubernetes.io/arch",
-					//							Operator: "In",
-					//							Values:   []string{"amd64", "arm64", "ppc64le", "s390x"},
-					//						},
-					//						{
-					//							Key:      "kubernetes.io/os",
-					//							Operator: "In",
-					//							Values:   []string{"linux"},
-					//						},
-					//					},
-					//				},
-					//			},
-					//		},
-					//	},
-					//},
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: &[]bool{true}[0],
-						// IMPORTANT: seccomProfile was introduced with Kubernetes 1.19
-						// If you are looking for to produce solutions to be supported
-						// on lower versions you must remove this option.
-						SeccompProfile: &corev1.SeccompProfile{
-							Type: corev1.SeccompProfileTypeRuntimeDefault,
-						},
-					},
-					Containers: []corev1.Container{{
-						Image:           image,
-						Name:            "sentinel",
-						ImagePullPolicy: corev1.PullIfNotPresent,
-						// Ensure restrictive context for the container
-						// More info: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
-						SecurityContext: &corev1.SecurityContext{
-							// WARNING: Ensure that the image used defines an UserID in the Dockerfile
-							// otherwise the Pod will not run and will fail with "container has runAsNonRoot and image has non-numeric user"".
-							// If you want your workloads admitted in namespaces enforced with the restricted mode in OpenShift/OKD vendors
-							// then, you MUST ensure that the Dockerfile defines a User ID OR you MUST leave the "RunAsNonRoot" and
-							// "RunAsUser" fields empty.
-							RunAsNonRoot: &[]bool{true}[0],
-							// The sentinel image does not use a non-zero numeric user as the default user.
-							// Due to RunAsNonRoot field being set to true, we need to force the user in the
-							// container to a non-zero numeric user. We do this using the RunAsUser field.
-							// However, if you are looking to provide solution for K8s vendors like OpenShift
-							// be aware that you cannot run under its restricted-v2 SCC if you set this value.
-							RunAsUser:                &[]int64{1001}[0],
-							AllowPrivilegeEscalation: &[]bool{false}[0],
-							Capabilities: &corev1.Capabilities{
-								Drop: []corev1.Capability{
-									"ALL",
-								},
-							},
-						},
-						Ports: []corev1.ContainerPort{{
-							ContainerPort: sentinel.Spec.ContainerPort,
-							Name:          "sentinel",
-						}},
-						// Command: []string{"sentinel", "-m=64", "-o", "modern", "-v"},
-					}},
-				},
-			},
-		},
+	// Check if Role exists
+	role := &rbacv1.Role{}
+	err = r.Get(context.TODO(), types.NamespacedName{Name: sentinel.Spec.Role, Namespace: sentinel.Namespace}, role)
+	if err != nil {
+		return fmt.Errorf("Role '%s' not found: %s", sentinel.Spec.Role, err.Error())
 	}
 
-	// Set the ownerRef for the Deployment
-	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/
-	if err := ctrl.SetControllerReference(sentinel, dep, r.Scheme); err != nil {
-		return nil, err
+	// Check if RoleBinding exists
+	roleBinding := &rbacv1.RoleBinding{}
+	err = r.Get(context.TODO(), types.NamespacedName{Name: sentinel.Spec.RoleBinding, Namespace: sentinel.Namespace}, roleBinding)
+	if err != nil {
+		return fmt.Errorf("RoleBinding '%s' not found: %s", sentinel.Spec.RoleBinding, err.Error())
 	}
-	return dep, nil
+
+	return nil
 }
 
 // labelsForSentinel returns the labels for selecting the resources
