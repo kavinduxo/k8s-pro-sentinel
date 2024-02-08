@@ -34,17 +34,32 @@ spec:
           spec:
             description: SentinelSpec defines the desired state of Sentinel
             properties:
-              containerPort:
-                description: Port defines the port that will be used to init the container
-                  with the image
-                format: int32
-                type: integer
-              size:
-                description: Size defines the number of Sentinel instances
-                format: int32
-                maximum: 5
-                minimum: 1
-                type: integer
+              data:
+                additionalProperties:
+                  format: byte
+                  type: string
+                description: Data defines the key-value pair of data that should be
+                  secured
+                type: object
+              role:
+                description: Role defines is optional and for the RBAC secured type
+                type: string
+              roleBinding:
+                description: RoleBinding is optional and for the RBAC secured type
+                type: string
+              secretName:
+                description: SecretName defines the name of the secret that should
+                  create
+                type: string
+              secretType:
+                description: SecretType defines the Type of the secret severity
+                type: string
+              serviceAccount:
+                description: ServiceAccount is optional and for the RBAC secured type
+                type: string
+            required:
+            - secretName
+            - secretType
             type: object
           status:
             description: SentinelStatus defines the observed state of Sentinel

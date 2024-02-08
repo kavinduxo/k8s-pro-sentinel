@@ -3,7 +3,7 @@ kind: Sentinel
 metadata:
   name: sentinel-sample
 spec:
-  secretName: my-secret-name
+  secretName: test-secret1
   data:
-    password: hello123
+    password: hello123test
   secretType: BaseSecret
