@@ -1,0 +1,12 @@
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+name: encryptsentinel
+resources:
+  - resources:
+      - secrets
+    providers:
+      - aescbc:
+          keys:
+          - name: sentinelkey
+            secret: weX1J0Xls9T9sArGp5HhYcQV+UPffENivKR3lR3Il9k=
+      - identity: {}

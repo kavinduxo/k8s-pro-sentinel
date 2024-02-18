@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	//"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -327,6 +328,8 @@ func (r *SentinelReconciler) secretForSentinel(
 		// Create the Secret data
 		secretData := map[string][]byte{}
 		for key, value := range sentinel.Spec.Data {
+			// Encoding the secret value in order to achive the K8s default behaviour.
+			//secretData[key] = []byte(base64.StdEncoding.EncodeToString([]byte(value)))
 			secretData[key] = []byte(value)
 		}
 
