@@ -47,15 +47,18 @@ const (
 	// typeAvailableSentinel represents the status of the Deployment reconciliation
 	typeAvailableSentinel = "Available"
 	// typeDegradedSentinel represents the status used when the custom resource is deleted and the finalizer operations are must to occur.
-	typeDegradedSentinel  = "Degraded"
-	typeRbacIssueSentinel = "RBAC Failed"
+	typeDegradedSentinel     = "Degraded"
+	typeRbacIssueSentinel    = "RBAC-Failed"
+	typeEncryptIssueSentinel = "Encryption-Failed"
 )
 
 const (
-	typeSecretBase          = "BaseSecret"
-	typeSecretRbac          = "RBACSecuredSecret"
-	typeSecretLocalEncryted = "SecuredSecret"
-	typeSecretKmsEncrypted  = "KMSSecuredSecret"
+	typeSecretBase              = "BaseSecret"
+	typeSecretBaseRbac          = "RbacBaseSecret"
+	typeSecretLocalEncryted     = "SecuredSecret"
+	typeSecretLocalEncrytedRbac = "RbacSecuredSecret"
+	typeSecretKmsEncrypted      = "KMSSecuredSecret"
+	typeSecretKmsEncryptedRbac  = "RbacKMSSecuredSecret"
 )
 
 // SentinelReconciler reconciles a Sentinel object
@@ -190,20 +193,11 @@ func (r *SentinelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, nil
 	}
 
-	secret, err := r.secretForSentinel(sentinel, ctx, req)
+	secret, secretForSentinelRes, err := r.secretForSentinel(sentinel, ctx, req)
 	if err != nil {
-		log.Error(err, "Failed to appear secret for Sentinel")
-
-		// The following implementation will update the status
-		meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeAvailableSentinel,
-			Status: metav1.ConditionFalse, Reason: "Reconciling",
-			Message: fmt.Sprintf("Failed to create/find secret for the custom resource (%s): (%s)", sentinel.Name, err)})
-
-		if err := r.Status().Update(ctx, sentinel); err != nil {
-			log.Error(err, "Failed to update Sentinel status")
-			return ctrl.Result{}, err
-		}
+		return secretForSentinelRes, err
 	}
+
 	log.Info("Secret is Available now",
 		"Secret.Namespace", secret.Namespace, "Seret.Name", secret.Name)
 
@@ -286,7 +280,7 @@ func (r *SentinelReconciler) validateSecretType(
 
 	// Check if SecretType is one of the allowed values
 	switch sentinel.Spec.SecretType {
-	case typeSecretBase, typeSecretRbac, typeSecretLocalEncryted, typeSecretKmsEncrypted:
+	case typeSecretBase, typeSecretBaseRbac, typeSecretLocalEncryted, typeSecretLocalEncrytedRbac, typeSecretKmsEncrypted, typeSecretKmsEncryptedRbac:
 		// Valid SecretType
 		return nil
 	default:
@@ -316,8 +310,9 @@ func (r *SentinelReconciler) doFinalizerOperationsForSentinel(cr *secopsv1alpha1
 }
 
 func (r *SentinelReconciler) secretForSentinel(
-	sentinel *secopsv1alpha1.Sentinel, ctx context.Context, req ctrl.Request) (*corev1.Secret, error) {
+	sentinel *secopsv1alpha1.Sentinel, ctx context.Context, req ctrl.Request) (*corev1.Secret, ctrl.Result, error) {
 
+	log := log.FromContext(ctx)
 	secretName := sentinel.Spec.SecretName
 	secretNamespace := sentinel.Namespace
 	secretType := sentinel.Spec.SecretType
@@ -336,9 +331,20 @@ func (r *SentinelReconciler) secretForSentinel(
 		}
 
 		//Check the type of the secret
-		if secretType == "RBACSecuredSecret" {
-			if err := r.validateRbacSecret(sentinel); err != nil {
-				return nil, err
+		if secretType == typeSecretBaseRbac {
+			if validateRbacSecretRes, err := r.validateRbacSecret(sentinel, ctx, req); err != nil {
+				return nil, validateRbacSecretRes, err
+			}
+		} else if secretType == typeSecretLocalEncryted {
+			if validateLocalEncryptedSecretRes, err := r.validateLocalEncryptedSecret(sentinel, ctx, req); err != nil {
+				return nil, validateLocalEncryptedSecretRes, err
+			}
+		} else if secretType == typeSecretLocalEncrytedRbac {
+			if validateLocalEncryptedSecretRes, err := r.validateLocalEncryptedSecret(sentinel, ctx, req); err != nil {
+				return nil, validateLocalEncryptedSecretRes, err
+			}
+			if validateRbacSecretRes, err := r.validateRbacSecret(sentinel, ctx, req); err != nil {
+				return nil, validateRbacSecretRes, err
 			}
 		}
 
@@ -353,46 +359,193 @@ func (r *SentinelReconciler) secretForSentinel(
 
 		// Set Sentinel instance as the owner of the Secret
 		if err := controllerutil.SetControllerReference(sentinel, newSecret, r.Scheme); err != nil {
-			return nil, err
+			log.Error(err, "Setting Sentinel instance as the owner of the Secret Failed.")
+			return nil, ctrl.Result{}, err
 		}
 
 		// Create the Secret
 		if err := r.Create(ctx, newSecret); err != nil {
-			return nil, err
+			log.Error(err, "Secret Creation Final Step Failed.")
+			return nil, ctrl.Result{}, err
 		}
 
-		return newSecret, nil
+		return newSecret, ctrl.Result{}, nil
 	} else if err != nil {
 		//if there is any error while fetching the existing secret
-		return nil, err
+		return nil, ctrl.Result{}, err
 	}
 
-	return existSecret, nil
+	return existSecret, ctrl.Result{}, nil
 }
 
 func (r *SentinelReconciler) validateRbacSecret(
-	sentinel *secopsv1alpha1.Sentinel) error {
-	serviceAccount := &corev1.ServiceAccount{}
-	err := r.Get(context.TODO(), types.NamespacedName{Name: sentinel.Spec.ServiceAccount, Namespace: sentinel.Namespace}, serviceAccount)
-	if err != nil {
-		return fmt.Errorf("ServiceAccount '%s' not found: %s", sentinel.Spec.ServiceAccount, err.Error())
+	sentinel *secopsv1alpha1.Sentinel, ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
+	log := log.FromContext(ctx)
+
+	inputServiceAccount := sentinel.Spec.ServiceAccount
+	inputRole := sentinel.Spec.Role
+	inputRoleBinding := sentinel.Spec.RoleBinding
+	inputNamespace := sentinel.Namespace
+	inputUserType := sentinel.ObjectMeta.GetLabels()["usertype"]
+
+	if inputRole == "" {
+		inpRoErr := fmt.Errorf("Defining your Role is must under Spec.Role.")
+		log.Error(inpRoErr, "Role Not Found!")
+
+		meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeRbacIssueSentinel,
+			Status: metav1.ConditionFalse, Reason: "NotFound",
+			Message: fmt.Sprintf("Role Not Found (%s): (%s)", sentinel.Name, inpRoErr)})
+
+		return ctrl.Result{}, inpRoErr
+	}
+
+	if inputRoleBinding == "" {
+		inpRbErr := fmt.Errorf("Defining your RoleBinding is must under Spec.RoleBinding.")
+		log.Error(inpRbErr, "RoleBinding Not Found!")
+
+		meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeRbacIssueSentinel,
+			Status: metav1.ConditionFalse, Reason: "NotFound",
+			Message: fmt.Sprintf("RoleBinding Not Found (%s): (%s)", sentinel.Name, inpRbErr)})
+
+		return ctrl.Result{}, inpRbErr
+	}
+
+	if inputServiceAccount != "" {
+		if inputUserType == "User" {
+		} else if inputUserType == "ServiceAccount" {
+			// Check if SA exists
+			sa := &corev1.ServiceAccount{}
+			saErr := r.Get(context.TODO(), types.NamespacedName{Name: inputServiceAccount, Namespace: inputNamespace}, sa)
+			if saErr != nil {
+				log.Error(saErr, "Service Account must create!")
+
+				meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeRbacIssueSentinel,
+					Status: metav1.ConditionFalse, Reason: "Not Found",
+					Message: fmt.Sprintf("Service Account Not Found (%s): (%s)", sentinel.Name, saErr)})
+
+				return ctrl.Result{}, saErr
+			}
+		} else {
+			inpRbErr := fmt.Errorf("Define the User or Service Account in the labaels as an usertype.")
+			log.Error(inpRbErr, "Invalid usertype!")
+
+			meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeRbacIssueSentinel,
+				Status: metav1.ConditionFalse, Reason: "Invalid",
+				Message: fmt.Sprintf("usertype Not Found (%s): (%s)", sentinel.Name, inpRbErr)})
+
+			return ctrl.Result{}, inpRbErr
+		}
 	}
 
 	// Check if Role exists
 	role := &rbacv1.Role{}
-	err = r.Get(context.TODO(), types.NamespacedName{Name: sentinel.Spec.Role, Namespace: sentinel.Namespace}, role)
-	if err != nil {
-		return fmt.Errorf("Role '%s' not found: %s", sentinel.Spec.Role, err.Error())
+	roleErr := r.Get(context.TODO(), types.NamespacedName{Name: inputRole, Namespace: inputNamespace}, role)
+
+	if roleErr != nil && apierrors.IsNotFound(roleErr) {
+
+		// Role does not exist, create a new one
+		newRole := &rbacv1.Role{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      inputRole,
+				Namespace: inputNamespace,
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{""},        // Empty string represents the core API group
+					Resources: []string{"secrets"}, // Resource types that this Role has access to
+					Verbs:     []string{"get", "list", "watch"},
+				},
+			},
+		}
+
+		// Set Sentinel instance as the owner of the Secret
+		if err := controllerutil.SetControllerReference(sentinel, newRole, r.Scheme); err != nil {
+			log.Error(err, "Setting Sentinel instance as the owner of the Role Failed.")
+			return ctrl.Result{}, err
+		}
+
+		// Create the Role
+		if err := r.Create(ctx, newRole); err != nil {
+			log.Error(err, "Role Creation Final Step Failed.")
+			return ctrl.Result{}, err
+		}
+	} else if roleErr != nil {
+		//if there is any error while fetching the existing role
+		return ctrl.Result{}, roleErr
 	}
 
-	// Check if RoleBinding exists
 	roleBinding := &rbacv1.RoleBinding{}
-	err = r.Get(context.TODO(), types.NamespacedName{Name: sentinel.Spec.RoleBinding, Namespace: sentinel.Namespace}, roleBinding)
-	if err != nil {
-		return fmt.Errorf("RoleBinding '%s' not found: %s", sentinel.Spec.RoleBinding, err.Error())
+	roleBindingErr := r.Get(context.TODO(), types.NamespacedName{Name: inputRoleBinding, Namespace: inputNamespace}, roleBinding)
+	if roleBindingErr != nil && apierrors.IsNotFound(roleBindingErr) {
+
+		// RoleBinding does not exist, create a new one
+		newRole := &rbacv1.RoleBinding{
+			TypeMeta: metav1.TypeMeta{},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      inputRoleBinding,
+				Namespace: inputNamespace,
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:     inputUserType,
+					APIGroup: "",
+					Name:     inputServiceAccount,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "",
+				Kind:     "Role",
+				Name:     inputRole,
+			},
+		}
+
+		// Set Sentinel instance as the owner of the Secret
+		if err := controllerutil.SetControllerReference(sentinel, newRole, r.Scheme); err != nil {
+			log.Error(err, "Setting Sentinel instance as the owner of the Role Failed.")
+			return ctrl.Result{}, err
+		}
+
+		// Create the Role
+		if err := r.Create(ctx, newRole); err != nil {
+			log.Error(err, "Role Creation Final Step Failed.")
+			return ctrl.Result{}, err
+		}
+	} else if roleBindingErr != nil {
+		//if there is any error while fetching the existing role binding
+		return ctrl.Result{}, roleBindingErr
 	}
 
-	return nil
+	meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeRbacIssueSentinel,
+		Status: metav1.ConditionFalse, Reason: "Binding",
+		Message: fmt.Sprintf("Service Account, Role & Role Binding are good to go. (%s)", sentinel.Name)})
+
+	return ctrl.Result{}, nil
+}
+
+func (r *SentinelReconciler) validateLocalEncryptedSecret(
+	sentinel *secopsv1alpha1.Sentinel, ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
+	log := log.FromContext(ctx)
+
+	// Check if Role exists
+	role := &rbacv1.Role{}
+	err := r.Get(context.TODO(), types.NamespacedName{Name: sentinel.Spec.Role, Namespace: sentinel.Namespace}, role)
+	if err != nil {
+		log.Error(err, "Role Does Not Found!")
+
+		meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeRbacIssueSentinel,
+			Status: metav1.ConditionFalse, Reason: "Binding",
+			Message: fmt.Sprintf("Failed to map the role for the sentinel (%s): (%s)", sentinel.Name, err)})
+
+		return ctrl.Result{}, err
+	}
+
+	meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeRbacIssueSentinel,
+		Status: metav1.ConditionFalse, Reason: "Encrpt",
+		Message: fmt.Sprintf("Encryption is locally setup correclty. (%s)", sentinel.Name)})
+
+	return ctrl.Result{}, nil
 }
 
 // labelsForSentinel returns the labels for selecting the resources

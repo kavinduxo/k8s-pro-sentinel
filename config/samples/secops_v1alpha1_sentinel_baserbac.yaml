@@ -1,0 +1,15 @@
+apiVersion: secops.kavinduxo.com/v1alpha1
+kind: Sentinel
+metadata:
+  name: base-rbac-sentinel
+  labels:
+    usertype: ServiceAccount
+spec:
+  secretName: rbac-auth-secret
+  data:
+    password: hello678
+  secretType: BaseSecret
+  serviceAccount: base-sentinel-rbac
+  role: basesec-rbac-role
+  roleBinding: basesec-rbac-binding
+
