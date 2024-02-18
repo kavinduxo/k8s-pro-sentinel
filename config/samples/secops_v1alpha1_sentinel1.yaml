@@ -1,9 +1,10 @@
 apiVersion: secops.kavinduxo.com/v1alpha1
 kind: Sentinel
 metadata:
-  name: sentinel-sample
-spec:
+  name: sentinel-sample1
+spec: 
   secretName: test-secret1
   data:
-    password: hello123test
-  secretType: BaseSecret
+    password: hello678
+  secretType: RbacBaseSecret
+  serviceAccount: controller-manager
