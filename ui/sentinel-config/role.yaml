@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: cr-role
+rules:
+- apiGroups:
+  - ""
+  - apps
+  - autoscaling
+  - batch
+  - extensions
+  - policy
+  - rbac.authorization.k8s.io
+  - secops.kavinduxo.com
+  resources:
+  - sentinels
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - watch
