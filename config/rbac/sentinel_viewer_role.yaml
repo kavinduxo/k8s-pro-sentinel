@@ -1,0 +1,27 @@
+# permissions for end users to view sentinels.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: sentinel-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: sentinel-operator
+    app.kubernetes.io/part-of: sentinel-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: sentinel-viewer-role
+rules:
+- apiGroups:
+  - secops.kavinduxo.com
+  resources:
+  - sentinels
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - secops.kavinduxo.com
+  resources:
+  - sentinels/status
+  verbs:
+  - get

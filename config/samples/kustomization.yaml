@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- secops_v1alpha1_sentinel.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples
