@@ -1,0 +1,4 @@
+1. Create a namespace
+2. Create a Role
+3. Create a RoleBinding
+4. Create a User/ServiceAccount

@@ -1,0 +1,72 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: sentinel-operator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: Sentinel is the Schema for the sentinels API
+      displayName: Sentinel
+      kind: Sentinel
+      name: sentinels.secops.kavinduxo.com
+      specDescriptors:
+      - description: Data defines the key-value pair of data that should be secured
+        displayName: Data
+        path: data
+      - description: Role defines is optional and for the RBAC secured type
+        displayName: Role
+        path: role
+      - description: RoleBinding is optional and for the RBAC secured type
+        displayName: Role Binding
+        path: roleBinding
+      - description: SecretName defines the name of the secret that should create
+        displayName: Secret Name
+        path: secretName
+      - description: SecretType defines the Type of the secret severity
+        displayName: Secret Type
+        path: secretType
+      - description: ServiceAccount is optional and for the RBAC secured type
+        displayName: Service Account
+        path: serviceAccount
+      statusDescriptors:
+      - description: Conditions store the status conditions of the Sentinel instances
+        displayName: Conditions
+        path: conditions
+      version: v1alpha1
+  description: Operator sentinel for secured secrets in the cluster
+  displayName: sentinel
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - sentinel
+  - k8s
+  - secretmanager
+  links:
+  - name: Sentinel Operator
+    url: https://sentinel-operator.domain
+  maintainers:
+  - email: kavindu.xo@gmail.com
+    name: kavindu
+  maturity: alpha
+  provider:
+    name: kavinduxo
+  version: 0.0.0
