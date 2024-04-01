@@ -18,6 +18,9 @@ package controller
 
 import (
 	"context"
+	"path/filepath"
+
+	//"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -31,7 +34,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/homedir"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -327,6 +333,8 @@ func (r *SentinelReconciler) secretForSentinel(
 		// Create the Secret data
 		secretData := map[string][]byte{}
 		for key, value := range sentinel.Spec.Data {
+			// Encoding the secret value in order to achive the K8s default behaviour.
+			//secretData[key] = []byte(base64.StdEncoding.EncodeToString([]byte(value)))
 			secretData[key] = []byte(value)
 		}
 
@@ -528,16 +536,25 @@ func (r *SentinelReconciler) validateLocalEncryptedSecret(
 
 	log := log.FromContext(ctx)
 
-	// Check if Role exists
-	role := &rbacv1.Role{}
-	err := r.Get(context.TODO(), types.NamespacedName{Name: sentinel.Spec.Role, Namespace: sentinel.Namespace}, role)
+	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+
 	if err != nil {
-		log.Error(err, "Role Does Not Found!")
+		log.Error(err, "Build Config Error!")
+		return ctrl.Result{}, err
+	}
 
-		meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeRbacIssueSentinel,
-			Status: metav1.ConditionFalse, Reason: "Binding",
-			Message: fmt.Sprintf("Failed to map the role for the sentinel (%s): (%s)", sentinel.Name, err)})
+	// Create Kubernetes clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Error(err, "Client Set Config Error!")
+		return ctrl.Result{}, err
+	}
 
+	// Copy file to PKI location
+	copyErr := copyFileToPKI("/home/kavindu/projects/operators/this/sentinel-operator/encryptconfig.yaml", clientset)
+	if copyErr != nil {
+		log.Error(err, "Error when copying a file to !")
 		return ctrl.Result{}, err
 	}
 
@@ -546,6 +563,66 @@ func (r *SentinelReconciler) validateLocalEncryptedSecret(
 		Message: fmt.Sprintf("Encryption is locally setup correclty. (%s)", sentinel.Name)})
 
 	return ctrl.Result{}, nil
+}
+
+func copyFileToPKI(localFilePath string, clientset *kubernetes.Clientset) error {
+	// Get the absolute path of the local file
+	absPath, err := filepath.Abs(localFilePath)
+	if err != nil {
+		return err
+	}
+
+	// Open the local file
+	file, err := os.Open(absPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	exists, err := fileExistsInPKI(clientset, filepath.Base(localFilePath))
+	if err != nil {
+		return err
+	}
+	if exists {
+		log.Log.Info("File exists!")
+		return nil
+	}
+
+	// Create a Kubernetes ConfigMap with the file data
+	// You can also use Secrets if needed
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "file-configmap",
+			Namespace: "kube-system", // Namespace where kube-controller-manager pod resides
+		},
+		Data: map[string]string{
+			filepath.Base(absPath): absPath,
+		},
+	}
+
+	// Create or update the ConfigMap in Kubernetes
+	_, err = clientset.CoreV1().ConfigMaps(cm.Namespace).Create(context.Background(), cm, metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+
+	// Use Kubernetes VolumeMount to mount the ConfigMap in kube-controller-manager pod
+	// This requires modifying the pod spec and performing a rolling update
+
+	return nil
+}
+
+func fileExistsInPKI(clientset *kubernetes.Clientset, fileName string) (bool, error) {
+	cm, err := clientset.CoreV1().ConfigMaps("kube-system").Get(context.Background(), "file-configmap", metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	_, ok := cm.Data[fileName]
+	return ok, nil
 }
 
 // labelsForSentinel returns the labels for selecting the resources

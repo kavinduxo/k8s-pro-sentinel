@@ -36,7 +36,6 @@ spec:
             properties:
               data:
                 additionalProperties:
-                  format: byte
                   type: string
                 description: Data defines the key-value pair of data that should be
                   secured

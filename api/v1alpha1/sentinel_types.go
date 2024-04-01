@@ -33,7 +33,7 @@ type SentinelSpec struct {
 
 	// Data defines the key-value pair of data that should be secured
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	Data map[string][]byte `json:"data,omitempty"`
+	Data map[string]string `json:"data,omitempty"`
 
 	// SecretType defines the Type of the secret severity
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
