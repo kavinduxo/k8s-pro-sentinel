@@ -1,9 +1,9 @@
 apiVersion: secops.kavinduxo.com/v1alpha1
 kind: Sentinel
 metadata:
-  name: sentinel-sample
+  name: sentinel-sample2
 spec:
-  secretName: my-secret-name
+  secretName: my-secret-name2
   data:
-    password: hello123
-  secretType: BaseSecret
+    password: hello1232
+  secretType: BaseSecret2
