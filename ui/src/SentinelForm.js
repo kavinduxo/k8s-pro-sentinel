@@ -14,6 +14,7 @@ function SentinelForm({ onSubmit }) {
     const [password, setPassword] = useState('');
     const [secretType, setSecretType] = useState('BaseSecret');
     const [serviceAccount, setServiceAccount] = useState('');
+    const [nameSpace, setNameSpace] = useState('default');
     const [role, setRole] = useState('');
     const [roleBinding, setRoleBinding] = useState('');
     const [showPassword, setShowPassword] = useState(false); // State for password visibility
@@ -45,7 +46,7 @@ function SentinelForm({ onSubmit }) {
         };
 
         try {
-            const response = await fetch('/apis/secops.kavinduxo.com/v1alpha1/namespaces/default/sentinels', {
+            const response = await fetch('/apis/secops.kavinduxo.com/v1alpha1/namespaces/' + nameSpace.trim() + '/sentinels', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -76,6 +77,7 @@ function SentinelForm({ onSubmit }) {
         setPassword('');
         setSecretType('BaseSecret');
         setServiceAccount('');
+        setNameSpace('default');
         setRole('');
         setRoleBinding('');
     };
@@ -168,33 +170,42 @@ function SentinelForm({ onSubmit }) {
                     {(secretType === 'RbacBaseSecret' || secretType === 'RbacSecuredSecret' || secretType === 'RbacKMSSecuredSecret') && (
                         <Box sx={{ borderBottom: '2px solid #ccc', marginBottom: 3 }}>
                             <Typography variant="h6" sx={{ marginBottom: 1 }}>Authorization</Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
                             <TextField
                                 label="Service Account"
                                 variant="outlined"
-                                fullWidth
                                 size="small"
                                 value={serviceAccount}
                                 onChange={(e) => setServiceAccount(e.target.value)}
-                                sx={{ marginBottom: 1 }}
+                                sx={{ marginBottom: 1, marginRight: 4 }}
                             />
                             <TextField
-                                label="Role"
+                                label="Namespace"
                                 variant="outlined"
-                                fullWidth
                                 size="small"
-                                value={role}
-                                onChange={(e) => setRole(e.target.value)}
-                                sx={{ marginBottom: 1 }}
+                                value={nameSpace}
+                                onChange={(e) => setNameSpace(e.target.value)}
+                                sx={{ marginBottom: 1  }}
                             />
-                            <TextField
-                                label="Role Binding"
-                                variant="outlined"
-                                fullWidth
-                                size="small"
-                                value={roleBinding}
-                                onChange={(e) => setRoleBinding(e.target.value)}
-                                sx={{ marginBottom: 1 }}
-                            />
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
+                                <TextField
+                                    label="Role"
+                                    variant="outlined"
+                                    size="small"
+                                    value={role}
+                                    onChange={(e) => setRole(e.target.value)}
+                                    sx={{ marginBottom: 1, marginRight: 4 }}
+                                />
+                                <TextField
+                                    label="Role Binding"
+                                    variant="outlined"
+                                    size="small"
+                                    value={roleBinding}
+                                    onChange={(e) => setRoleBinding(e.target.value)}
+                                    sx={{ marginBottom: 1 }}
+                                />
+                            </Box>
                         </Box>
                     )}
                     <Box sx={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
