@@ -309,10 +309,10 @@ func (r *SentinelReconciler) doFinalizerOperationsForSentinel(cr *secopsv1alpha1
 	// More info: https://kubernetes.io/docs/tasks/administer-cluster/use-cascading-deletion/
 
 	// The following implementation will raise an event
-	r.Recorder.Event(cr, "Warning", "Deleting",
-		fmt.Sprintf("Custom Resource %s is being deleted from the namespace %s",
-			cr.Name,
-			cr.Namespace))
+	// r.Recorder.Event(cr, "Warning", "Deleting",
+	// 	fmt.Sprintf("Custom Resource %s is being deleted from the namespace %s",
+	// 		cr.Name,
+	// 		cr.Namespace))
 }
 
 func (r *SentinelReconciler) secretForSentinel(
