@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"os/exec"
 	"path/filepath"
 
 	//"encoding/base64"
@@ -26,6 +27,7 @@ import (
 	"os"
 	"strings"
 
+	"golang.org/x/crypto/bcrypt"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -333,26 +335,31 @@ func (r *SentinelReconciler) secretForSentinel(
 		// Create the Secret data
 		secretData := map[string][]byte{}
 		for key, value := range sentinel.Spec.Data {
-			// Encoding the secret value in order to achive the K8s default behaviour.
-			//secretData[key] = []byte(base64.StdEncoding.EncodeToString([]byte(value)))
-			secretData[key] = []byte(value)
-		}
+			//Check the type of the secret
+			if secretType == typeSecretBaseRbac {
+				if validateRbacSecretRes, err := r.validateRbacSecret(sentinel, ctx, req); err != nil {
+					return nil, validateRbacSecretRes, err
+				}
+				secretData[key] = []byte(value)
 
-		//Check the type of the secret
-		if secretType == typeSecretBaseRbac {
-			if validateRbacSecretRes, err := r.validateRbacSecret(sentinel, ctx, req); err != nil {
-				return nil, validateRbacSecretRes, err
-			}
-		} else if secretType == typeSecretLocalEncryted {
-			if validateLocalEncryptedSecretRes, err := r.validateLocalEncryptedSecret(sentinel, ctx, req); err != nil {
-				return nil, validateLocalEncryptedSecretRes, err
-			}
-		} else if secretType == typeSecretLocalEncrytedRbac {
-			if validateLocalEncryptedSecretRes, err := r.validateLocalEncryptedSecret(sentinel, ctx, req); err != nil {
-				return nil, validateLocalEncryptedSecretRes, err
-			}
-			if validateRbacSecretRes, err := r.validateRbacSecret(sentinel, ctx, req); err != nil {
-				return nil, validateRbacSecretRes, err
+			} else if secretType == typeSecretLocalEncryted {
+				validateLocalEncryptedSecretRes, err, ecryptedSecretData := r.validateLocalEncryptedSecret2(sentinel, ctx, req, value)
+				if err != nil {
+					return nil, validateLocalEncryptedSecretRes, err
+				}
+				secretData[key] = ecryptedSecretData
+
+			} else if secretType == typeSecretLocalEncrytedRbac {
+				validateLocalEncryptedSecretRes, err, ecryptedSecretData := r.validateLocalEncryptedSecret2(sentinel, ctx, req, value)
+				if err != nil {
+					return nil, validateLocalEncryptedSecretRes, err
+				}
+				if validateRbacSecretRes, err := r.validateRbacSecret(sentinel, ctx, req); err != nil {
+					return nil, validateRbacSecretRes, err
+				}
+				secretData[key] = ecryptedSecretData
+			} else {
+				secretData[key] = []byte(value)
 			}
 		}
 
@@ -530,6 +537,132 @@ func (r *SentinelReconciler) validateRbacSecret(
 
 	return ctrl.Result{}, nil
 }
+
+// bcrypt secret securing (Start)
+func (r *SentinelReconciler) validateLocalEncryptedSecret2(
+	sentinel *secopsv1alpha1.Sentinel, ctx context.Context, req ctrl.Request, secret string) (ctrl.Result, error, []byte) {
+
+	log := log.FromContext(ctx)
+
+	key := os.Getenv("ENCRYPTION_SECRET")
+	if key == "" {
+		keyErr := fmt.Errorf("Encryption key not found in .env file.")
+		log.Error(keyErr, "KeyError")
+	}
+
+	encryptedSecret, err := encryptSecret(secret, []byte(key))
+	if err != nil {
+		log.Error(err, "Failed to encrypt secret")
+	}
+
+	meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeRbacIssueSentinel,
+		Status: metav1.ConditionFalse, Reason: "Encrpt",
+		Message: fmt.Sprintf("Encryption is locally done. (%s)", sentinel.Name)})
+
+	return ctrl.Result{}, nil, encryptedSecret
+}
+
+func encryptSecret(secret string, key []byte) ([]byte, error) {
+	// Hash secret using bcrypt
+	hash, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
+
+	if err != nil {
+		return nil, err
+	}
+	return hash, nil
+}
+
+//bcrypt secret securing (End)
+
+// new way to handle secure secrets (start)
+func (r *SentinelReconciler) validateLocalEncryptedSecret1(
+	sentinel *secopsv1alpha1.Sentinel, ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
+	log := log.FromContext(ctx)
+	kubeApiServerConfig := "/etc/kubernetes/manifests/kube-apiserver.yaml"
+
+	// this part of solution is based for minikube. it has to be changed according to the cluster architecture
+	if err := sshIntoMinikube(); err != nil {
+		log.Error(err, "Ping to control plane failed!")
+	}
+
+	enaled, err := isEncryptionProviderEnabled(kubeApiServerConfig)
+	if err != nil {
+		log.Error(err, "Couldn't find KubeApiServer config!")
+	}
+
+	if !enaled {
+		if err := modifyKubeApiServer(); err != nil {
+			log.Error(err, "Failed to modify KubeApiServer config!")
+		}
+
+		if err := createEncryptConfig(); err != nil {
+			log.Error(err, "Failed to create Encryption Configuration file!")
+		}
+
+		if err := restartKubeApiServerContainer(); err != nil {
+			log.Error(err, "Failed to restart the kube api server container!")
+		}
+	}
+
+	meta.SetStatusCondition(&sentinel.Status.Conditions, metav1.Condition{Type: typeRbacIssueSentinel,
+		Status: metav1.ConditionFalse, Reason: "Encrpt",
+		Message: fmt.Sprintf("Encryption is locally setup correclty. (%s)", sentinel.Name)})
+
+	return ctrl.Result{}, nil
+}
+
+func restartKubeApiServerContainer() error {
+	cmd := exec.Command("sudo", "systemctl", "restart", "kubelet")
+	return cmd.Run()
+}
+
+func createEncryptConfig() error {
+	encryptionConfigContent := `
+kind: EncryptionConfiguration
+resources:
+  - resources:
+    - secrets
+    providers:
+    - aescbc:
+        keys:
+        - name: key1
+          secret: "` + os.Getenv("ENCRYPTION_SECRET") + `"
+`
+	file, err := os.Create("/etc/kubernetes/encryption-config.yaml")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(encryptionConfigContent)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func modifyKubeApiServer() error {
+	panic("unimplemented")
+}
+
+func isEncryptionProviderEnabled(kubeApiServerConfig string) (bool, error) {
+	content, err := os.ReadFile(kubeApiServerConfig)
+	if err != nil {
+		return false, err
+	}
+	return strings.Contains(string(content), "--encryption-provider-config"), nil
+}
+
+func sshIntoMinikube() error {
+	cmd := exec.Command("minikube", "ssh")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+//new way to handle secure secrets (end)
 
 func (r *SentinelReconciler) validateLocalEncryptedSecret(
 	sentinel *secopsv1alpha1.Sentinel, ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

@@ -25,3 +25,4 @@ Dockerfile.cross
 *.swo
 *~
 ui/.env
+.env
